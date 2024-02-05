@@ -1,1 +1,2 @@
-{:main example.core}
+{:main example.core
+ :open-url false}

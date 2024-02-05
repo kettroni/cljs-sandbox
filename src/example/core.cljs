@@ -36,8 +36,8 @@
 (defonce canvas (.getElementById js/document "main"))
 (defn setCanvasSize []
   (doto canvas
-  (.setAttribute "width" (str (.-clientWidth (.-body js/document)) "px"))
-  (.setAttribute "height" (str (.-scrollHeight (.-documentElement js/document)) "px"))))
+    (.setAttribute "width" (str (.-clientWidth (.-body js/document)) "px"))
+    (.setAttribute "height" (str (.-scrollHeight (.-documentElement js/document)) "px"))))
 (setCanvasSize)
 (.addEventListener js/window "resize" setCanvasSize)
 
@@ -52,8 +52,7 @@
        }"
    :uniforms {:view       :mat4
               :proj       :mat4}
-   :attribs  {:position   :vec3}
-   })
+   :attribs  {:position   :vec3}})
 
 (def triangle (geom/as-mesh (tri/triangle3 [[-0.5 -0.5 0] [0.5 -0.5 0] [0 0.5 0]])
                             {:mesh (glmesh/gl-mesh 3)}))
@@ -73,6 +72,7 @@
   (gl/draw-with-shader (combine-model-shader-and-camera triangle shader-spec camera)))
 
 (def buffer (atom (js/Uint8Array. [])))
+(def cursor-position (atom 0))
 
 (defn string->bytestring
   [s]
@@ -81,27 +81,36 @@
 (defn uint8array->vector [ua]
   (vec (clj->js ua)))
 
+(defn alphanumeric? [char]
+  (let [re (js/RegExp. "^[a-zA-Z0-9]$")]
+    (boolean (.test re (str char)))))
+
+(defn white-space? [char]
+  (let [re (js/RegExp. "^\\s$")]
+    (boolean (.test re (str char)))))
+
 (defn handle-keypress [event]
   (let [key (.-key event)
-        char-code (int (first (string->bytestring key)))
-        buffer-value @buffer]
+        char-code (int (first (string->bytestring key)))]
 
-    (prn "pressed key:" key)
-    (prn "char-code:" char-code)
-    (prn "current buffer:" buffer-value)
     (cond
       (= key "Backspace")
       (do
         (swap! buffer (fn [b] (if (seq b) (butlast b) b)))
-        (println "Buffer after Backspace:" @buffer))
+        (when (> @cursor-position 0)
+          (swap! cursor-position dec)))
 
-      (and (not= char-code 0) (<= char-code 127))
+      (or (alphanumeric? (char char-code)) (white-space? (char char-code)))
       (do
-        (swap! buffer #(vec (conj (uint8array->vector %) char-code)))
-        (println "Buffer after keypress:" @buffer))
+        (when (= (count key) 1)
+          (swap! buffer #(vec (conj (uint8array->vector %) char-code)))
+          (swap! cursor-position inc)))
 
       :else
-      (println "Ignoring keypress:", key))))
+      (println "Ignoring keypress:", key))
+    (println "Buffer:" @buffer)
+    (println "Buffer as characters:" (map char @buffer))
+    (println "Cursor position:" @cursor-position)))
 
 (defn setup-keyboard-listener []
   (events/listen js/window EventType/KEYDOWN handle-keypress))
@@ -126,5 +135,4 @@
   ;; WebGL
   (doto gl-ctx
     (gl/clear-color-and-depth-buffer 0 0 0 0.5 1)) ;; Set ctx to grey.
-  (prn camera)
-  )
+  (prn camera))
